@@ -1,0 +1,12 @@
+[submodule "guard-find-app"]
+    path = guard-find-app
+    url = https://github.com/ygj0925/guard-find-app.git
+[submodule "guard-find-backend"]
+    path = guard-find-backend
+    url = https://github.com/ygj0925/guard-find-backend.git
+[submodule "guard-find-frontend"]
+    path = guard-find-frontend
+    url = https://github.com/ygj0925/guard-find-fontend.git
+[submodule "guard-find-server"]
+    path = guard-find-server
+    url = https://github.com/ygj0925/guard-find-server.git
