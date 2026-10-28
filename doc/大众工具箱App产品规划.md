@@ -252,3 +252,25 @@ gf_forum_comment(id, post_id, user_id, parent_id, content, like_count, create_*,
 - 数据边界:不做考勤/绩效/薪资等敏感人力场景;OKR 数据默认私有
 - 无障碍:所有操作按钮带 accessibilityLabel;状态不单靠颜色(带文字)
 - 依赖:零新增原生依赖;未做任务提醒(鸿蒙通知未验证,与 P2 打卡提醒同批)
+
+## 十、音乐播放器(已落地 Web 形态,鸿蒙待原生接入)
+
+### 10.1 研究结论:这个功能的"隐藏的坑"(用户问的正是这些)
+1. **RN 核心没有音频播放**——必须依赖原生模块(expo-av / expo-audio / react-native-sound);
+   鸿蒙侧每个原生模块都要 `pnpm dlx expo-harmony-cli install` + RNOH 真机验证,这是最大的坑。
+2. **选取手机音频文件**需要文档选择器(expo-document-picker),又一个原生依赖;
+   且 Android SAF 授权的 URI 是临时的,重启 App 后可能失效,需要 takePersistableUriPermission。
+3. **后台播放与锁屏控制**需要音频会话(Android MediaSession / 鸿蒙 AVSession),
+   纯前端做不到,是"能播"与"像播放器"之间的差距,二期再做。
+4. **音频格式**各端差异:iOS 偏好 AAC/CAF,Android/鸿蒙 AVPlayer 支持 mp3/aac/flac/ogg;
+   用户手机里的无损格式(wav/flac)在部分端需要软解。
+5. **Web 端可以零原生依赖完整实现**(HTML5 Audio)——这正是本期的落地形态。
+
+### 10.2 本期落地形态(遵循能力分派层,与 image-picker 同模式)
+- 能力:`lib/capabilities/music.ts`(Web=HTML5 Audio 完整可用)/ `music.harmony.ts`(鸿蒙 unsupported 降级)
+- 页面:播放列表(本地持久化)+ 播放控制(上一首/播放暂停/下一首)+ 可点按进度条
+- 鸿蒙接入路径已写在 capability 文件 TODO:装 expo-av → 替换 harmony 实现 → 调用方零改动
+- 诚实标注:鸿蒙/安卓原生侧入口会显示"暂不支持"降级文案,而不是假可用
+
+### 10.3 二期路线
+expo-av 接入(播放+选文件)→ 后台播放 + 锁屏控制(AVSession)→ 均衡器/倍速 → 歌词显示
