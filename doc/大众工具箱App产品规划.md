@@ -310,3 +310,14 @@ expo-av 接入(播放+选文件)→ 后台播放 + 锁屏控制(AVSession)→ �
 | 白噪音/专注音 | 需音频资源包 | 与音乐播放器共用 expo-av 接入成果 |
 | 世界时钟 | 纯本地(Intl 时区) | 与时钟工具合并为子页 |
 | 目标关联任务(OKR→任务) | 纯服务端 | KR 进度自动按关联任务完成度推进 |
+
+## 十三、体验动效批次(已落地)
+
+全部基于已通过 RNOH 验证的 react-native-reanimated 与手势库,零新增原生依赖:
+| 效果 | 落点 | 实现 |
+| --- | --- | --- |
+| 圆形扩散转场 | 首页快捷入口 + 工具箱宫格点击 | 透明 Modal 圆形遮罩从点击处扩散,动画中段跳转(components/ui/circular-reveal.tsx) |
+| 勾选联动 | 待办勾选 | 勾选弹跳(spring 缩放)+ 删除线从左向右延伸 + 文字淡出 |
+| 叠卡展开 | 待办「已完成」分组 | 完成项折叠为叠卡,点击展开 |
+| 吸附卡+画线 | 音乐播放进度条 | 拖动时填充线与圆点跟随手指,松手弹簧吸附 seek(components/ui/draggable-progress.tsx) |
+| 惯性滚轮 | 计时器分钟选择 | ScrollView snapToInterval + fast 减速,惯性滑动吸附刻度(components/ui/wheel-picker.tsx) |
