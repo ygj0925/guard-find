@@ -508,3 +508,17 @@ music 死状态;**monitor 的惰性 `require` 属刻意设计**(诊断模块要�
 ### 15.2 表结构与 API
 四表:gf_tool_report / gf_tool_report_member / gf_tool_report_entry / gf_tool_report_comment(changeset 23-26)。
 API /app/tool/report:创建(自动建成员+发通知)/mine/详情/读月报/存月报(草稿|提交)/评论列表/评论回复/加成员/移除成员/删除。
+
+## 十六、OKR 完整版(已落地服务端)
+
+对标飞书 OKR / Teambition 的差距补齐(全部服务端强制,表结构 changeset 27-30):
+| 能力 | 实现 |
+| --- | --- |
+| KR 权重加权 | weight 1-10;目标进度 = ΣKR进度×权重/Σ权重(替代均值) |
+| 信心指数 | confidence 1-10;更新进度时联动调整 |
+| 状态自动判定 | KrStatusCalculator:时间进度 vs 实际进度 → onTrack/atRisk/behind/done |
+| 进度更新时间线 | gf_tool_kr_log;每次更新留痕(from/to/confidence) |
+| KR 关联任务自动推进 | gf_tool_task.kr_id;关联任务完成占比 = KR 进度 |
+| 期末复盘评分 | gf_tool_goal.score(0-1) |
+- API:PUT kr(元信息含权重/信心)/GET kr logs/POST·DELETE link task/PUT score
+- 整体状态 = 最落后 KR 状态
