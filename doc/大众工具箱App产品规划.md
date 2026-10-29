@@ -374,3 +374,47 @@ lib/nav.ts loginHref 返回 Href + 运行时拼接处 as never 断言收口(13 �
 - CI 的 `lint:ci` 是 `--max-warnings=0`,仓内仍有 22 条既有 warning(_layout/message/
   case-card 相邻页/me/publish/tools 的 clock+music/feedback/pickers/menubar/monitor/session),
   与本批无关,属独立清理项
+
+## 十六、视觉地基批次一(审计驱动的一致性收口)
+
+### 16.1 审计结论(优化前置)
+54 屏清点结果:页头只有 5 种形态且 66% 是同一种"大标题 + 副标题";三件套(SectionCard 56 处、
+EmptyState 43 处、ErrorState 29 文件)复用 100+ 次,EmptyState 是纯文字,项目内 0 张业务插画。
+模块辨识度仅 时钟/签到 6 位码/随机转盘/计算器 为高,记账-待办-习惯-目标-分账-任务-社区-我的 全是同构卡片流。
+**定性为双轨**:寻亲端是 trust-first 公共服务(低变化、克制动效、清晰度优先),工具箱端才允许每模块一个签名交互。
+同一套 token 与阶梯,不做"每模块各起一套风格"。
+
+### 16.2 token 同源与真守卫
+四处写值:global.css(HSL 变量)/ constants/Colors.ts TOKENS / NATIVE_BRAND 十六进制 / app.json 字面色。
+原注释声称由 `__tests__/tokens.test.ts`、`token-sync.test.ts` 防漂移,这两个文件并不存在(谎报 CI 保护)。
+现落地 `constants/__tests__/token-sync.test.ts` 五条断言:明暗两套 CSS 变量逐条对齐 TOKENS、
+NATIVE_BRAND 每个十六进制必须由 HSL 派生、app.json 原生底色取自 NATIVE_BRAND、--radius 仍为 rem 阶梯源。
+首跑即抓到 `app.json` 的 `#f8fafc` ≠ `--background`(`#f4f7fb`),已修。
+
+### 16.3 圆角阶梯(单一来源)
+`--radius` 12 → 14px,其余全部 `calc(var(--radius) ± n)`:xs 6 / sm 8 / md 10 / lg=xl 14 / 2xl 20 / full。
+用途规则:xs 小控件(复选框)、sm 图标容器、md 控件(button/input)、lg-xl 卡片与容器、
+2xl 底部 sheet 与大块 hero、full 胶囊(chip、分段器、悬浮 tab bar)。不再允许 `rounded-[Npx]` 字面值。
+
+### 16.4 遮罩、深色与可读下限
+新增 `overlay` 语义 token(明 `222 47% 8%` / 暗 `224 44% 3%`),18 处 `bg-black/*` 清零
+(纯黑在深色下是"涂黑"而非"压暗");RemoteImage 三处写死灰底改走 `bg-muted` 随主题翻转;
+收支报表图表标签 8px → 10px,全站最小字号现为 10px。
+
+### 16.5 动效常量与无障碍降级
+`constants/Motion.ts`:`SPRING(tap/release/snap/bounce)` + `DURATION` + `timing()`,统一带 `ReduceMotion.System`。
+补齐此前 6 处"真实在跑但零降级"的动效:pressable-scale、circular-reveal、draggable-progress、
+todo 勾选弹跳与画线、random 转盘(转盘用 RN 核心 Animated,以 `useReducedMotion` 置零时长降级)。
+对照事实:仓内原有 11 处 ReduceMotion 全写在零引用的模板组件里,等于没有。
+顺带修两个缺陷:draggable-progress 曾在 `useAnimatedStyle` 内逐帧重发 `withSpring`(改为独立 SharedValue)、
+音乐进度外部 500ms 轮询裸赋值导致进度点硬跳(改 `withTiming` 平滑跟随)。
+
+### 16.6 库级地雷(实测确认,立为约定)
+- `shadow-*` / `shadow-black/5` 这类 class 在**原生端不渲染**:css-interop 解析器只有 shared/shorthand/text-shadow,
+  原生只认 `shadowColor/shadowOffset/shadowOpacity/shadowRadius/elevation`。即卡片目前在设备上只有边框没有海拔。
+- `Animated.createAnimatedComponent(X)` 产出的是新组件对象,不在 NativeWind 注册表内,`className` 会被静默丢弃,
+  必须显式 `cssInterop(AnimatedX, { className: 'style' })`;`animate-pulse` 是例外(走 keyframes 通道,原生真会跑)。
+
+### 16.7 尚未落地
+海拔层级(native shadow 常量层)、19 个工具页的双重页头(`_layout.tsx:64` 未关原生 header + 页内大标题 + `edges=['top']`)、
+EmptyState 图形化与模块插画、主色由"电光蓝 + 深色霓虹青"收敛为信任基调(已定方向,下一批)。
