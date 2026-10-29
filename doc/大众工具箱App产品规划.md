@@ -321,3 +321,27 @@ expo-av 接入(播放+选文件)→ 后台播放 + 锁屏控制(AVSession)→ �
 | 叠卡展开 | 待办「已完成」分组 | 完成项折叠为叠卡,点击展开 |
 | 吸附卡+画线 | 音乐播放进度条 | 拖动时填充线与圆点跟随手指,松手弹簧吸附 seek(components/ui/draggable-progress.tsx) |
 | 惯性滚轮 | 计时器分钟选择 | ScrollView snapToInterval + fast 减速,惯性滑动吸附刻度(components/ui/wheel-picker.tsx) |
+
+## 十四、全设备响应式适配(已落地)
+
+### 14.1 断点口径(行业标准)
+phone < 640 ≤ tablet < 1024 ≤ desktop。CSS 层用 NativeWind v4 的 sm:/md:/lg: 变体
+(v4 全平台生效,走窗口宽度);JS 层用 hooks/useBreakpoint.ts(同口径),供结构性决策。
+
+### 14.2 适配规则(对标 Twitter/掘金/iPad 分栏模式)
+| 设备 | 导航 | 内容 |
+| --- | --- | --- |
+| 手机 | 底部悬浮胶囊 | 全宽内容流 |
+| 平板竖屏(md) | 底部胶囊 | 内容限宽 720 居中(阅读宽度) |
+| 平板横屏/PC/折叠屏展开(lg) | 左侧竖排侧边栏(tabBarPosition:left,标签常显) | 内容限宽 960 居中 |
+- 工具宫格列数:手机 2 列 / md 3 列 / lg 4 列(w-[47%] md:w-[31%] lg:w-[23%])
+- 落点:hooks/useBreakpoint.ts + components/ui/floating-tab-bar.tsx(竖排 rail 变体)+ 五大 Tab 页
+
+### 14.3 Web 交互与性能
+- hover 反馈:工具卡/快捷入口 hover:opacity-90 + web:cursor-pointer(触屏设备不受影响)
+- 按需加载:expo-router Web 端按路由自动分包;图片走 RemoteImage 单一通道;
+  宽窄屏两种导航形态是同一组件条件渲染,无额外资源;未引任何响应式专用库
+
+### 14.4 typed-routes 修复
+expo-env.d.ts 重新生成后,运行时拼接的 push(string) 全部暴露;统一在
+lib/nav.ts loginHref 返回 Href + 运行时拼接处 as never 断言收口(13 处)。
