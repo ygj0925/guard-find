@@ -492,3 +492,19 @@ music 死状态;**monitor 的惰性 `require` 属刻意设计**(诊断模块要�
 ### 18.5 仍待办
 18 个零引用的 shadcn 模板组件(menubar 356 行、dropdown-menu 298 行、progress/tooltip/accordion 等)未删,等确认;
 海拔层级需 native shadow 常量;19 个工具页的双重页头与 EmptyState 插画化属下一批。
+
+## 十五、月度工作汇报(已落地)
+
+### 15.1 权限矩阵(三种角色,服务端强制)
+| 能力 | 发起人 OWNER | 填报人 REPORTER | 接收人 VIEWER |
+| --- | --- | --- | --- |
+| 查看/评论月报 | ✓ | ✓ | ✓ |
+| 填报月报 | 仅自己兼任填报时 | 仅本人那份 | ✗ |
+| 读草稿 | ✗ | 仅本人草稿 | ✗ |
+| 管理(删活动/加移成员) | ✓ | ✗ | ✗ |
+- 非成员访问一律 NOT_FOUND(不泄露存在性);草稿提交后全成员可读;迟交自动标记。
+- 填报人/接收人从「我的关注」选人(一期边界);互动通知(被评论/被回复)复用消息中心。
+
+### 15.2 表结构与 API
+四表:gf_tool_report / gf_tool_report_member / gf_tool_report_entry / gf_tool_report_comment(changeset 23-26)。
+API /app/tool/report:创建(自动建成员+发通知)/mine/详情/读月报/存月报(草稿|提交)/评论列表/评论回复/加成员/移除成员/删除。
