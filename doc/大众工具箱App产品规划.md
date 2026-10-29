@@ -311,6 +311,13 @@ expo-av 接入(播放+选文件)→ 后台播放 + 锁屏控制(AVSession)→ �
 | 世界时钟 | 纯本地(Intl 时区) | 与时钟工具合并为子页 |
 | 目标关联任务(OKR→任务) | 纯服务端 | KR 进度自动按关联任务完成度推进 |
 
+## 十二-B、模块特色视觉与状态规范(已落地,design-taste 审计)
+- **Design Read**:应用内 redesign-preserve,Dials 4/5/5;统一 token 不破坏,每模块一个克制身份点缀
+- **全局触感反馈**:PressableScale(按下 spring 0.97),接线工具宫格/首页快捷入口/动态卡
+- **Loading 状态规范**:骨架屏(形状占位)替换全部 13 处文字加载态——skill 状态完备硬规则
+- **模块特色**:习惯卡 streak 火焰热度(连续越久底色越暖)/记账月合计支出主指标字号层次/目标卡进度百分比大字
+- **AI-tell 清单核对**:无 em-dash、无装饰性圆点/eyebrow 滥用、无 fake-precise 数字、色彩一致性锁(单电光蓝 accent)+圆角体系锁
+
 ## 十三、体验动效批次(已落地)
 
 全部基于已通过 RNOH 验证的 react-native-reanimated 与手势库,零新增原生依赖:
