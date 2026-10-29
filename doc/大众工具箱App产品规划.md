@@ -449,3 +449,39 @@ EmptyState 图形化与模块插画、主色由"电光蓝 + 深色霓虹青"收�
 
 ### 17.5 边界
 这批只动 token 层,未做真机/鸿蒙观感核对;`shadow-*` 在原生不渲染的约定见 16.6,海拔层级仍未落地。
+
+## 十八、视觉审阅批次(逐条复核 + 静态检查清零)
+
+### 18.1 审阅发现的真实问题
+| 问题 | 证据 | 处置 |
+| --- | --- | --- |
+| 文档与实现不符:十三声称"叠卡展开"已落地,实际是死状态 | `app/tools/todo.tsx:53` 的 `doneExpanded` 全仓无引用,列表把 pending/finished 平铺渲染 | 已接线:收起态开关挂在列表尾,展开态插在待办与已完成之间,带 `accessibilityState.expanded` |
+| 压照片图标不可见 | `media-field` 的移除/重试图标是白色 glyph 直接叠在照片上,浅图下方等于隐形 | 补 `bg-overlay/70` 圆底承载 + 前景改 `on-overlay` |
+| 色板外字面色 6 处 | habits `rgba(255,150,50,.15)`、community `rgba(0,0,0,.06)`、todo 删除线中性灰、wheel-picker 灰边+字面 `borderRadius:10`、media-field `#fff`、draggable-progress `#ffffff` | 全部归 token(`bg-pending/15`、`bg-overlay/10`、`muted-foreground`、`border-border/25 rounded-md`、`on-overlay`) |
+| 批次一里我私自改了 spring 参数 | `Motion.SPRING` 曾加 `mass`、把 snap 的 stiffness 从默认 100 抬到 180 | 回正为各处原值。"参数收口"不等于"顺手改手感",已实机验证过的动效不动 |
+| 守卫只做了单向 | `token-sync` 仅校验 TOKENS→CSS,CSS 侧多写或拼错变量名不会被发现 | 改为双向集合比对(排除 `--radius`) |
+| music 改造遗留 | `barWidth` 无人写、`seekRatio` 无人调、`progress` 表达式在卡片里又重写一遍 | 删死状态与死回调,统一用 `progress` |
+| pickers 重渲染浪费 | `const provinces = filters?.regions ?? []` 每次渲染新建数组,下游 `cities` memo 全量失效 | 兜底数组也 useMemo |
+
+### 18.2 新增 on-overlay token
+明暗同值 `210 40% 98%`(off-white,不用纯白)。存在的理由:压在暗遮罩/照片上的前景**不随主题翻转**;
+若复用 `primary-foreground`,深色端它是深墨字,会变成"深字压深底"。这类前景必须独立成 token,才算收口干净。
+
+### 18.3 静态检查清零(CI Lint 第一次可过)
+`eslint . --max-warnings=0` 由 22 条降到 0,main 上此前连续三次 CI failure 都停在 Lint 步骤。清理内容:
+未使用导入/类型 9 处(含 `_layout` 的 `isDesktop`——宽屏判定实际在 `floating-tab-bar` 内)、重复导入 2 组、
+music 死状态;**monitor 的惰性 `require` 属刻意设计**(诊断模块要能在非 RN 环境加载),加带理由的行级豁免而非改行为。
+
+### 18.4 自测清单
+- `npx tsc --noEmit`:0 error
+- `eslint . --max-warnings=0`:退出码 0(零 warning)
+- `jest`:12 套 73 测试全过(含新的双向 token 守卫)
+- SSR 冒烟:todo / music / clock / habits / drafts / cases / leads / case 详情 / search / plaza / tools 共 11 条路由无渲染错误
+- 产物校验:Tailwind 实际生成 `rounded-xs`、`text-on-overlay`、`bg-overlay/70`、`bg-pending/15`、`border-border/25`,
+  alpha 变体解析为 `hsl(var(--overlay) / 0.7)` 形式,证明 token 与类名双向接通
+- **边界**:以上全为静态与产物验证。未做 Android/iOS/鸿蒙真机观感核对;`cssInterop` 的合并语义已读库源码确认是
+  push 而非覆盖(`react-native-css-interop/dist/shared.js:97-101`),但按压缩放与深色渲染仍需真机走一遍
+
+### 18.5 仍待办
+18 个零引用的 shadcn 模板组件(menubar 356 行、dropdown-menu 298 行、progress/tooltip/accordion 等)未删,等确认;
+海拔层级需 native shadow 常量;19 个工具页的双重页头与 EmptyState 插画化属下一批。
