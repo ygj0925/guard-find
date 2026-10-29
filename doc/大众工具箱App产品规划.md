@@ -345,3 +345,32 @@ phone < 640 ≤ tablet < 1024 ≤ desktop。CSS 层用 NativeWind v4 的 sm:/md:
 ### 14.4 typed-routes 修复
 expo-env.d.ts 重新生成后,运行时拼接的 push(string) 全部暴露;统一在
 lib/nav.ts loginHref 返回 Href + 运行时拼接处 as never 断言收口(13 处)。
+
+## 十五、加载骨架与按压触感批次(已落地)
+
+### 15.1 骨架屏(Loading 状态规范)
+13 个页面的"加载中…"空卡占位(SectionCard 空渲染)换成形状匹配的骨架:头像圆 + 两行文字。
+- 单一来源:骨架块复用既有 components/ui/skeleton.tsx 的 Skeleton(bg-accent + animate-pulse),
+  在其内新增 SkeletonList(rows) / SkeletonSummary;中途另建的 skeleton-loader.tsx 与它职责重复
+  (两个同名 Skeleton 导出、且自身无脉冲动画),已合并删除
+- 落点:动态、AI 会话、动态详情、用户主页、打卡、倒计时、目标、习惯、记账、记账分组、AA 分账、任务、待办
+- SkeletonSummary 当前无调用方,是汇总卡骨架的预留位
+
+### 15.2 按压触感(components/ui/pressable-scale.tsx)
+按下 spring 缩到 0.97、松手回弹,Reanimated 驱动,零新增依赖。
+- 落点:动态列表卡 1 处 + 广场 7 处(搜索框/筛选/排序与城市 Chip/快捷入口卡)+ 工具箱 2 处(AI 周报卡、工具宫格卡)
+- 关键约束:className 与 transform 必须打在**同一个节点**。NativeWind 只为核心组件
+  (View/Text/Pressable/ScrollView…)注册过 className→style,而 Animated.createAnimatedComponent()
+  产出的是新组件对象;不显式 `cssInterop(AnimatedPressable, { className: 'style' })` 注册,
+  className 会被当未知 prop 丢掉,mb-2、w-[47%]、flex-1 这类布局类静默失效。
+- 不采用嵌套包裹:外层裸 Pressable 会丢尺寸(百分比与 flex-1 相对内容尺寸父节点解析为 0),
+  内层多包一层又会打断父容器的 flex-row / items-center 排版。
+- 站点 className 不含 transition-*/animate-*:否则 NativeWind 会对已是 animated 的组件再包一层,
+  形成双层 animated。本批 10 个站点均为 hover:/web: 伪类,不触发该路径。
+
+### 15.3 遗留
+- 广场信息流卡片本体在共享组件 components/business/case-card.tsx(搜索页、我的寻亲等同用),
+  本批未接按压触感,待实机确认缩放手感后统一收口
+- CI 的 `lint:ci` 是 `--max-warnings=0`,仓内仍有 22 条既有 warning(_layout/message/
+  case-card 相邻页/me/publish/tools 的 clock+music/feedback/pickers/menubar/monitor/session),
+  与本批无关,属独立清理项
