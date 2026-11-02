@@ -10,3 +10,6 @@
 [submodule "guard-find-server"]
     path = guard-find-server
     url = https://github.com/ygj0925/guard-find-server.git
+[submodule "sss-recruitment-miniapp"]
+	path = sss-recruitment-miniapp
+	url = git@codeup.aliyun.com:64fabbd74bb5eb36db2f0a5f/base/sss-recruitment-miniapp.git
