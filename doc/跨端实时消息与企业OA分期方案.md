@@ -79,19 +79,24 @@ WebSocket 的定位是"数据已变化"的低延迟通知;鉴权、事务、幂�
 | 微信构建 | `pnpm build:mp` | Build complete |
 | 小程序浏览器联调 | H5 + 浏览器内模拟 REST 响应 | 105 条跨页补齐、发送期间对方消息未漏、发送未推进读取游标、退出后停止请求并清空消息、客服页可显示客服消息 |
 | App 类型检查 | `npx tsc --noEmit` | 通过 |
-| App 测试 | `npx jest --ci --watchAll=false --runInBand` | 17 套件 113 测试通过(新增聊天同步 8 项、连接生命周期 6 项、存储驱动 3 项、无安全随机源 1 项) |
+| App 测试 | `npx jest --ci --watchAll=false --runInBand` | 18 套件 114 测试通过(新增聊天同步 8 项、连接生命周期 6 项、存储驱动 3 项、无安全随机源 1 项、上传契约 1 项) |
 | App ESLint | 对本批改动文件执行 `npx eslint --max-warnings=0` | 通过 |
 | 后端 IM 回归 | `mvn ... -Dtest=SupportUnreadRegressionTest,ImRegressionTest` | 7 + 11 项通过,0 失败/错误/跳过 |
 | 服务端 WebSocket 回归 | `mvn ... -Dtest=ImWebSocketSecurityTest,ImAppBoundaryTest,AdminImServiceImplTest` | 57 + 2 + 5 项通过,0 失败/错误/跳过 |
 | 服务端事务/分页回归 | `mvn ... -Dtest=ImTransactionPagingTest,...` | 新增 4 项,IM 合计 68 项通过 |
 | backend 客服事务回归 | `mvn ... -Dtest=ImRegressionTest` | 15 项通过,含提交前不推送/提交后推送/回滚不推送 |
 | server 客服事务/分页回归 | `mvn ... -Dtest=AdminImServiceImplTest` | 9 项通过,含最近100条/增量100条/只标返回ID/提交后推送 |
+| C 端上传契约 | `mvn ... -Dtest=AppFileControllerTest` | 5 项通过,含未登录 401/非图片/超限/非法目录 |
+| BPMN 引擎隔离兼容 | `mvn ... -Dtest=FlowableEngineCompatibilityTest,FlowableSpringBootCompatibilityTest` | 4 项通过,含 H2 建表/部署/完成/计时器/引擎重启与 Boot 自动配置 |
+| backend-system 全量回归 | `mvn -pl guard-find-backend-system -am -DskipTests=false test` | 90 项通过,0 失败/错误/跳过 |
 
 浏览器联调使用页面内注入的模拟数据,不是真实 Java 服务;未验证真实 MySQL/Redis、微信真机、鸿蒙真机或多副本部署。App 本批仅完成静态检查与单元测试,未在 Android/iOS/鸿蒙真机或模拟器运行,也未连接真实 server。
 
 工具批证据:server 便笺接口 `ToolNoteServiceImplTest` 7 项通过;App `/tools/notes` 通过类型检查、109 项既有测试与改动文件 ESLint,未连接真实服务,7.2 仍需浏览器/鸿蒙验收。物品收纳已补齐 `gf_tool_item`、`/app/tool/item` 分页 CRUD、数量非负 CAS 与归档;`ToolItemServiceImplTest` 9 项通过,工具类合计 16 项。App 新增 `/tools/items` 页面与入口,数量调整冲突时回刷;同样未连真实服务或真机,7.4 保持未完成。
 
 上传契约证据:审计发现 App 原先请求的 `/file/upload` 在 server 无处理器(后台为 `/system/file/upload`,公共为 `/system/common/file`),真机上传必然 404。已新增 `/app/file/upload`:强制登录态用户 ID,目录白名单 `case|lead|avatar|report|post`,仅图片 MIME + `jpg/jpeg/png/webp/gif`,5 MB 上限,路径按 `app/{userId}/{folder}/yyyy/MM/dd` 隔离归属;App 全部上传调用统一改走该端点。`AppFileControllerTest` 5 项通过(成功、非图片、超限、非法目录/空文件、未登录 401),App 上传契约单测钉死路径/字段/超时,类型检查、18 套件 114 项测试与改动文件 ESLint 通过。未连接真实存储服务或真机。
+
+BPMN 底座证据:引擎候选锁定 Flowable 7.2.0(BOM 基于 Boot 3.5.4 / Spring 6.2.10,与本项目 Boot 3.4.10 / Spring 6.2 同代;Jar 清单 Apache-2.0;8.0.0 面向 Boot 4 不可用)。以 test 范围依赖在 backend-system 增加隔离测试,4 项通过:H2 建表后部署 BPMN、排他网关完成并落历史;计时器 Job 转可执行并推进到用户任务;文件库引擎重启后任务仍在并可完成;仅装配 DataSource + 事务管理器时 Boot 自动配置能创建 ProcessEngine。同时发现 process starter 干净类路径缺少 `flowable-spring-configurator` 与 `flowable-app-engine-spring`,启动即 `NoClassDefFoundError`,已显式补齐并写回设计。backend-system 全量 90 项通过。未连接项目 MySQL/Liquibase,未验证多副本与长稳。
 
 ## 4. 尚未完成的边界
 
@@ -102,7 +107,7 @@ WebSocket 的定位是"数据已变化"的低延迟通知;鉴权、事务、幂�
 - **鸿蒙**:安全随机数已改为无安全源即拒绝生成(拒绝采样,不降级 `Math.random`),并有单测;持久化驱动仍未接入,原生存储包安装命令在本机无输出后终止,未产生依赖改动。上传契约已修复为 `/app/file/upload`(登录、目录/类型/大小/归属校验),但尚未连接真实存储;原生能力与真机验收仍未完成。
 - **个人工具**:灵感便笺与物品收纳均已完成服务端分页 CRUD、归属/版本冲突测试与 App 页面接线,尚未连真实服务或真机验收;物品数量并发依赖真实 MySQL 复验。
 - **后台性能**:尚无隔离数据集和前后基线,未改索引或缓存。
-- **OA/BPMN**:仅完成设计与规格;未安装引擎、未建表、未实现任何审批业务。
+- **OA/BPMN**:引擎兼容性已在隔离 H2 上验证并锁定 Flowable 7.2.0,但生产引擎/事务/租户接入、OA 表迁移、流程/表单/审批中心及任何业务模块均未实现;不得把兼容性测试当作 OA 可交付。
 
 ## 5. 后续分期与验收门槛
 
