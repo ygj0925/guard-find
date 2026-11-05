@@ -59,6 +59,7 @@ WebSocket 的定位是"数据已变化"的低延迟通知;鉴权、事务、幂�
 - IM 推送改为事务提交后执行,回滚不再向对方推送不存在的消息;发送前锁会话行,串行更新摘要与未读。
 - 普通消息与客服消息查询统一 `LIMIT 100`,只把本次返回的对方/客服未读消息标已读并按数量递减,不再一次性清零未返回历史。
 - 后台客服回复补事务边界:消息落库提交后才通过同一 C 端连接推送 `admin_message`,回滚不推送;读取客服记录按返回 ID 标记 USER 消息已读。
+- server 后台客服读取与 backend 对齐:首屏最近 100 条、增量最多 100 条、只标记本次返回消息,禁用账号不允许后台发送。
 
 ### 3.4 App 聊天同步与连接生命周期
 
@@ -84,6 +85,7 @@ WebSocket 的定位是"数据已变化"的低延迟通知;鉴权、事务、幂�
 | 服务端 WebSocket 回归 | `mvn ... -Dtest=ImWebSocketSecurityTest,ImAppBoundaryTest,AdminImServiceImplTest` | 57 + 2 + 5 项通过,0 失败/错误/跳过 |
 | 服务端事务/分页回归 | `mvn ... -Dtest=ImTransactionPagingTest,...` | 新增 4 项,IM 合计 68 项通过 |
 | backend 客服事务回归 | `mvn ... -Dtest=ImRegressionTest` | 15 项通过,含提交前不推送/提交后推送/回滚不推送 |
+| server 客服事务/分页回归 | `mvn ... -Dtest=AdminImServiceImplTest` | 9 项通过,含最近100条/增量100条/只标返回ID/提交后推送 |
 
 浏览器联调使用页面内注入的模拟数据,不是真实 Java 服务;未验证真实 MySQL/Redis、微信真机、鸿蒙真机或多副本部署。App 本批仅完成静态检查与单元测试,未在 Android/iOS/鸿蒙真机或模拟器运行,也未连接真实 server。
 
