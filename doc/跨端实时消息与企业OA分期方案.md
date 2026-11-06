@@ -91,6 +91,7 @@ WebSocket 的定位是"数据已变化"的低延迟通知;鉴权、事务、幂�
 | BPMN 生产接入 | `mvn ... -Dtest=OaEngineIntegrationTest` + `OaEngineLiquibaseMySqlTest` | H2 7 项 + MySQL 2 项通过,含租户隔离/事务回滚/重启/定时器恢复/关闭自动建表 |
 | OA 表迁移(流程/表单/申请/审计/抄送/附件/outbox/幂等/员工组织) | `mvn ... -Dtest=OaEngineLiquibaseMySqlTest` | MySQL 8.4 隔离库 14 个 changeset 通过,十三表字段/索引与租户/全局唯一约束生效 |
 | OA 候选解析与执行拦截 | `mvn ... -Dtest=OaAssigneeResolverTest,OaProcessLauncherTest` | 6+5 项通过,含五种审批人来源/离职与跨租户拒绝/空候选不写引擎 |
+| OA BPMN 发布安全校验 | `mvn ... -Dtest=OaBpmnValidatorTest,OaConditionRuleCompilerTest,OaBpmnValidationConfigurationTest` | 17+9+2 项通过,含 XXE/节点白名单/受控服务任务/受限条件/容量限制与白名单配置 |
 | backend-system 全量回归 | `mvn -pl guard-find-backend-system -am -DskipTests=false test` | 90 项通过,0 失败/错误/跳过 |
 
 浏览器联调使用页面内注入的模拟数据,不是真实 Java 服务;未验证真实 MySQL/Redis、微信真机、鸿蒙真机或多副本部署。App 本批仅完成静态检查与单元测试,未在 Android/iOS/鸿蒙真机或模拟器运行,也未连接真实 server。
@@ -107,6 +108,8 @@ OA 表迁移证据:已新增 `oa_process.sql`、`oa_form.sql`、`oa_application.
 
 OA 员工组织与候选解析证据:部门沿用 `sys_user.dept_id`,新增 `oa_position`、`oa_employee`、`oa_employee_position`;`OaAssigneeResolver` 只接受结构化的五种来源(指定员工、岗位、部门负责人、直属主管、受控表单人员字段),`JdbcOaStaffDirectory` 每条 SQL 显式带 tenant_id,并以 `oa_employee.employment_status='ACTIVE'` 且 `sys_user.status=1` 判定在职,跨租户、离职、停用账号一律拒绝。发布校验拒绝不存在/停用/无在职员工的岗位与离职或跨租户的指定员工;部门负责人、直属主管、表单字段依赖具体发起人,发布时只校验结构,执行时为空即失败。`OaProcessLauncher` 在写引擎前解析全部候选变量,失败抛 `OaAssigneeUnavailableException`,不产生流程实例或任务。`OaAssigneeResolverTest` 6 项、`OaProcessLauncherTest` 5 项通过,模块合计 20 项(MySQL 2 项无环境变量时跳过)。边界:员工/岗位尚无 CRUD API 与页面,也没有实体/Mapper(当前为显式 SQL 只读目录);候选解析只覆盖发起时已知变量,后续节点需在任务创建监听复用解析器;员工离职不会自动转交存量待办(10.3);`oa_delegate_rule` 未建;未用项目开发库启动完整应用。
 
+OA BPMN 发布安全校验证据:`OaBpmnValidator` 以命名空间感知 DOM 解析,关闭 DOCTYPE、外部通用/参数实体与外部 DTD,启用 secure processing,`ACCESS_EXTERNAL_DTD`/`SCHEMA` 置空并由实体解析器直接抛错;预检 `<!DOCTYPE`/`<!ENTITY`,限制 512KB/200 个流程节点/2000 个元素/50 层嵌套,错误最多保留 40 条,并对原始 XML 计算 SHA-256。节点白名单为 definitions/process/startEvent/endEvent/userTask/serviceTask/exclusiveGateway/parallelGateway/boundaryEvent/sequenceFlow/conditionExpression/timerEventDefinition/timeDuration/timeDate/timeCycle/incoming/outgoing,另放行 bpmn-js 所需 BPMNDiagram/BPMNPlane/BPMNShape/BPMNEdge/BPMNLabel、dc:Bounds、di:waypoint;scriptTask、callActivity、subProcess、extensionElements、camunda/activiti 属性与任意 Flowable 子元素均拒绝。结构上要求单流程且 isExecutable=true、id 唯一、开始/结束事件存在、连线引用有效、开始事件不可作为目标、边界定时器只能挂用户任务、条件只能位于排他网关输出连线且默认连线有效、用户任务至少配置一种审批人来源、排他网关多出口除默认连线外必须有条件。服务任务只接受白名单内的 `flowable:class`,`flowable:expression`/`delegateExpression` 一律拒绝;白名单通过 `oa.bpmn.allowed-service-handlers` 逗号配置,默认空即全部拒绝。`OaConditionRuleCompiler` 把结构化 AND/OR 条件编译为受限 EL(EQ/NE/GT/GE/LT/LE/IN/NOT_IN,字段仅标识符/点路径,值仅数字/布尔/字符串或集合),再由 `OaConditionExpressionValidator` 词法/语法复核,只允许变量、字面量、比较、括号与 &&/||/!,拒绝方法调用、构造函数、`T(...)`、Bean 引用、三元、算术与 EL 关键字。`OaBpmnValidatorTest` 17 项、`OaConditionRuleCompilerTest` 9 项、`OaBpmnValidationConfigurationTest` 2 项通过,模块合计 48 项(46 项执行通过,MySQL 2 项无环境变量跳过)。边界:尚未接入发布/部署事务与版本落库(9.7),当前只校验 XML 不实际部署;服务任务白名单不验证类是否存在或实现 JavaDelegate;条件只做安全/语法校验,未在真实引擎执行语义回归;DI 只做放行,不校验图形引用完整性;未用项目开发库启动完整应用。
+
 ## 4. 尚未完成的边界
 
 - **App IM 实机**:同步与生命周期已修复并通过单测,但尚未做设备/模拟器联调,发送、推送、切后台与重连仍需真机验收。
@@ -116,13 +119,13 @@ OA 员工组织与候选解析证据:部门沿用 `sys_user.dept_id`,新增 `oa_
 - **鸿蒙**:安全随机数已改为无安全源即拒绝生成(拒绝采样,不降级 `Math.random`),并有单测;持久化驱动仍未接入,原生存储包安装命令在本机无输出后终止,未产生依赖改动。上传契约已修复为 `/app/file/upload`(登录、目录/类型/大小/归属校验),但尚未连接真实存储;原生能力与真机验收仍未完成。
 - **个人工具**:灵感便笺与物品收纳均已完成服务端分页 CRUD、归属/版本冲突测试与 App 页面接线,尚未连真实服务或真机验收;物品数量并发依赖真实 MySQL 复验。
 - **后台性能**:尚无隔离数据集和前后基线,未改索引或缓存。
-- **OA/BPMN**:生产引擎已接入并由 Liquibase 独占迁移,隔离 H2 与真实 MySQL 8.4 验证了租户隔离、事务回滚、关闭自动建表后的重启与定时器恢复;流程模型/发布/表单/表单版本/申请/审批审计/抄送回执/附件归属/outbox/命令幂等/岗位/员工/员工岗位十三张表已建并验证租户与全局唯一约束,员工组织与五种审批人来源的解析、发布校验和发起前拦截已打通,但无实体/Mapper/API 与员工岗位 CRUD 页面,outbox 投递与幂等清理作业未实现,候选解析只覆盖发起时已知变量(后续节点任务创建监听未接),离职员工存量待办不会自动转交,各业务表未建。异步执行器未启用、完整应用未在项目开发库启动,多副本与长稳未验证。流程设计器、表单、审批中心及任何 OA 业务模块均未实现;不得把引擎接入或建表当作 OA 可交付。
+- **OA/BPMN**:生产引擎已接入并由 Liquibase 独占迁移,隔离 H2 与真实 MySQL 8.4 验证了租户隔离、事务回滚、关闭自动建表后的重启与定时器恢复;流程模型/发布/表单/表单版本/申请/审批审计/抄送回执/附件归属/outbox/命令幂等/岗位/员工/员工岗位十三张表已建并验证租户与全局唯一约束,员工组织与五种审批人来源的解析、发布校验和发起前拦截已打通,但无实体/Mapper/API 与员工岗位 CRUD 页面,outbox 投递与幂等清理作业未实现,候选解析只覆盖发起时已知变量(后续节点任务创建监听未接),离职员工存量待办不会自动转交,各业务表未建。异步执行器未启用、完整应用未在项目开发库启动,多副本与长稳未验证。BPMN 发布前 XML 安全校验、节点/属性白名单、受限条件编译与受控服务任务已完成并单测覆盖,但尚未接入发布/部署事务与版本落库(9.7),服务任务类未验证存在性,条件未在真实引擎执行语义回归;流程设计器、表单、审批中心及任何 OA 业务模块均未实现;不得把引擎接入、建表或 XML 校验当作 OA 可交付。
 
 ## 5. 后续分期与验收门槛
 
 1. **A 消息正确性(继续)**:App 已修发送/去重/生命周期,server 已完成提交后推送、会话行锁与有界读取,backend 客服回复已收口事务与推送顺序;下一步统一分页/已读协议并在真实数据库验证并发写入、已读与游标。
 2. **B 鸿蒙与个人工具**:修复持久化与安全随机数,经 `expo-harmony-cli` 检查兼容并生成原生工程;实现便笺与物品收纳的归属隔离和乐观锁;鸿蒙以签名包真机验收。
-3. **C 性能与 BPMN 底座**:建立可复现性能基线后再优化;已完成 Flowable 7.2.0 生产接入(Liquibase 托管、租户/事务/重启/定时器验证)、十三张 OA 业务表迁移与员工/岗位/主管候选解析,下一步实现 XML 安全校验与节点白名单,再接 bpmn-js 设计器。
+3. **C 性能与 BPMN 底座**:建立可复现性能基线后再优化;已完成 Flowable 7.2.0 生产接入(Liquibase 托管、租户/事务/重启/定时器验证)、十三张 OA 业务表迁移、员工/岗位/主管候选解析与 BPMN 发布安全校验,下一步接入 bpmn-js 设计器(懒加载画布、属性、导入导出、校验预览)。
 4. **D 请假/报销试点**:额度并发、审批幂等、审批与支付分离、浏览器全流程。
 5. **E 其余 OA**:出差借款、假勤、采购资产、合同用印、公文知识、会议车辆、报表运维逐模块验收;不得以通用表和菜单冒充完成。
 
