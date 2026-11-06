@@ -89,7 +89,8 @@ WebSocket 的定位是"数据已变化"的低延迟通知;鉴权、事务、幂�
 | C 端上传契约 | `mvn ... -Dtest=AppFileControllerTest` | 5 项通过,含未登录 401/非图片/超限/非法目录 |
 | BPMN 引擎隔离兼容 | `mvn ... -Dtest=FlowableEngineCompatibilityTest,FlowableSpringBootCompatibilityTest` | 4 项通过,含 H2 建表/部署/完成/计时器/引擎重启与 Boot 自动配置 |
 | BPMN 生产接入 | `mvn ... -Dtest=OaEngineIntegrationTest` + `OaEngineLiquibaseMySqlTest` | H2 7 项 + MySQL 2 项通过,含租户隔离/事务回滚/重启/定时器恢复/关闭自动建表 |
-| OA 表迁移(流程/表单/申请/审计/抄送/附件/outbox/幂等) | `mvn ... -Dtest=OaEngineLiquibaseMySqlTest` | MySQL 8.4 隔离库 11 个 changeset 通过,十表字段/索引与租户/全局唯一约束生效 |
+| OA 表迁移(流程/表单/申请/审计/抄送/附件/outbox/幂等/员工组织) | `mvn ... -Dtest=OaEngineLiquibaseMySqlTest` | MySQL 8.4 隔离库 14 个 changeset 通过,十三表字段/索引与租户/全局唯一约束生效 |
+| OA 候选解析与执行拦截 | `mvn ... -Dtest=OaAssigneeResolverTest,OaProcessLauncherTest` | 6+5 项通过,含五种审批人来源/离职与跨租户拒绝/空候选不写引擎 |
 | backend-system 全量回归 | `mvn -pl guard-find-backend-system -am -DskipTests=false test` | 90 项通过,0 失败/错误/跳过 |
 
 浏览器联调使用页面内注入的模拟数据,不是真实 Java 服务;未验证真实 MySQL/Redis、微信真机、鸿蒙真机或多副本部署。App 本批仅完成静态检查与单元测试,未在 Android/iOS/鸿蒙真机或模拟器运行,也未连接真实 server。
@@ -102,7 +103,9 @@ BPMN 底座证据:引擎候选锁定 Flowable 7.2.0(BOM 基于 Boot 3.5.4 / Spri
 
 BPMN 生产接入证据:新增 `guard-find-backend-plugin-oa` 模块并由 api 依赖,迁移所有权归 Liquibase。Flowable 7.2.0 官方 MySQL 建表脚本 common/process/history 原样纳入 `db/changelog/mysql/oa`,接入 master changelog;应用配置 `flowable.database-schema-update=false`,仅启用 process 引擎,app/cmmn/dmn/idm/eventregistry 关闭;`OaFlowableConfiguration` 设历史级别 FULL、禁用 IDM/事件注册,并用 BFPP 给 `processEngine` 追加 `depends-on=liquibase`;`OaEngineTemplate` 所有入口强制 tenantId。`OaEngineIntegrationTest` 7 项通过:仅建 process 表且无 ACT_ID 表/无 AppEngine;租户 A/B 互不可见且跨租户完成被拒;跨租户领取被拒、重复领取幂等;外层事务回滚后无流程实例与任务;文件库重启且在 `schema-update=false` 下任务仍可读取并办结;重启后定时器 Job 仍在库中并可转可执行推进;存在 liquibase Bean 时 dependsOn 生效。`OaEngineLiquibaseMySqlTest` 在本地 MySQL 8.4 隔离库实测:3 个 changeset 成功,`common.schema.version`/`schema.version` 均为 7.2.0.2,关闭自动建表后引擎启动并完成部署/发起/办结,验证库已删除。异步执行器仍关闭,定时器为引擎级手工执行验证;未用项目开发库启动完整应用,多副本与长稳未验证。
 
-OA 表迁移证据:已新增 `oa_process.sql`、`oa_form.sql`、`oa_application.sql`、`oa_approval_audit.sql`、`oa_cc_receipt.sql`、`oa_attachment.sql`、`oa_outbox.sql`、`oa_request_dedup.sql` 八个 Liquibase changeset,共十张表。`oa_process_model` 含租户内 model_key 唯一、草稿 XML 与 SHA-256、生效版本指针、绑定表单版本、乐观锁;`oa_process_release` 冻结发布 XML、引擎定义 ID 全局唯一、租户+模型+版本唯一、表单版本绑定、可发起范围,且不设 update/delete 列以保持不可变;`oa_form` 含租户内 form_key 唯一、当前版本指针与乐观锁;`oa_form_version` 含租户+表单+版本唯一、schema 快照与摘要、字段数与发布人,同样不可变;`oa_application` 含租户+业务类型+业务单号唯一、流程实例 ID 全局唯一、发布/表单版本绑定、申请人及部门快照、提交数据快照、状态与乐观锁;`oa_approval_audit` 不可变,以租户+request_id 唯一防止命令重试产生重复轨迹,记录实际操作人、原审批人、理由与决策明细;`oa_cc_receipt` 以租户+申请+接收人唯一,记录未读/已读与读取时间;`oa_attachment_link` 以租户+file_id+deleted 唯一,记录申请/业务归属、扫描状态与可下载标记,裸 fileId 不构成授权;`oa_outbox` 以 event_id 全局唯一,记录聚合、事件类型、重试时间与失败原因,按状态+重试时间及租户+聚合建索引;`oa_request_dedup` 以租户+操作人+命令+request_id 唯一,保存结果快照与过期时间供重试回放。十表均带 tenant_id 与查询索引,master changelog 和验证 changelog 已接入。MySQL 8.4 隔离库实测 11 个 changeset 全部成功,`OaEngineLiquibaseMySqlTest` 2 项通过:关闭自动建表后引擎可启动/办结;十表字段与关键索引存在,重复 model_key/form_key/表单版本/业务单号/流程实例/request_id/抄送接收人/附件 file_id/幂等四元组及全局重复引擎定义 ID/outbox event_id 被拒,跨租户同名/同 fileId/同 request_id 按设计允许。尚未编写实体/Mapper/API,也未实现 outbox 投递与幂等清理作业。
+OA 表迁移证据:已新增 `oa_process.sql`、`oa_form.sql`、`oa_application.sql`、`oa_approval_audit.sql`、`oa_cc_receipt.sql`、`oa_attachment.sql`、`oa_outbox.sql`、`oa_request_dedup.sql`、`oa_staff.sql` 九个 Liquibase changeset,共十三张表。`oa_process_model` 含租户内 model_key 唯一、草稿 XML 与 SHA-256、生效版本指针、绑定表单版本、乐观锁;`oa_process_release` 冻结发布 XML、引擎定义 ID 全局唯一、租户+模型+版本唯一、表单版本绑定、可发起范围,且不设 update/delete 列以保持不可变;`oa_form` 含租户内 form_key 唯一、当前版本指针与乐观锁;`oa_form_version` 含租户+表单+版本唯一、schema 快照与摘要、字段数与发布人,同样不可变;`oa_application` 含租户+业务类型+业务单号唯一、流程实例 ID 全局唯一、发布/表单版本绑定、申请人及部门快照、提交数据快照、状态与乐观锁;`oa_approval_audit` 不可变,以租户+request_id 唯一防止命令重试产生重复轨迹,记录实际操作人、原审批人、理由与决策明细;`oa_cc_receipt` 以租户+申请+接收人唯一,记录未读/已读与读取时间;`oa_attachment_link` 以租户+file_id+deleted 唯一,记录申请/业务归属、扫描状态与可下载标记,裸 fileId 不构成授权;`oa_outbox` 以 event_id 全局唯一,记录聚合、事件类型、重试时间与失败原因,按状态+重试时间及租户+聚合建索引;`oa_request_dedup` 以租户+操作人+命令+request_id 唯一,保存结果快照与过期时间供重试回放;`oa_position` 以租户内 code 唯一,含启用/停用;`oa_employee` 以租户内 user_id 与工号唯一,记录直属主管、ACTIVE/SUSPENDED/RESIGNED 与部门负责人标记;`oa_employee_position` 以租户+员工+岗位唯一。十三表均带 tenant_id 与查询索引,master changelog 和验证 changelog 已接入。MySQL 8.4 隔离库实测 14 个 changeset 全部成功,`OaEngineLiquibaseMySqlTest` 2 项通过:关闭自动建表后引擎可启动/办结;十三表字段与关键索引存在,重复 model_key/form_key/表单版本/业务单号/流程实例/request_id/抄送接收人/附件 file_id/幂等四元组/岗位 code/员工 user_id/工号/员工岗位及全局重复引擎定义 ID/outbox event_id 被拒,跨租户同名/同 fileId/同 request_id/同 user_id 按设计允许。尚未编写实体/Mapper/API,也未实现 outbox 投递与幂等清理作业。
+
+OA 员工组织与候选解析证据:部门沿用 `sys_user.dept_id`,新增 `oa_position`、`oa_employee`、`oa_employee_position`;`OaAssigneeResolver` 只接受结构化的五种来源(指定员工、岗位、部门负责人、直属主管、受控表单人员字段),`JdbcOaStaffDirectory` 每条 SQL 显式带 tenant_id,并以 `oa_employee.employment_status='ACTIVE'` 且 `sys_user.status=1` 判定在职,跨租户、离职、停用账号一律拒绝。发布校验拒绝不存在/停用/无在职员工的岗位与离职或跨租户的指定员工;部门负责人、直属主管、表单字段依赖具体发起人,发布时只校验结构,执行时为空即失败。`OaProcessLauncher` 在写引擎前解析全部候选变量,失败抛 `OaAssigneeUnavailableException`,不产生流程实例或任务。`OaAssigneeResolverTest` 6 项、`OaProcessLauncherTest` 5 项通过,模块合计 20 项(MySQL 2 项无环境变量时跳过)。边界:员工/岗位尚无 CRUD API 与页面,也没有实体/Mapper(当前为显式 SQL 只读目录);候选解析只覆盖发起时已知变量,后续节点需在任务创建监听复用解析器;员工离职不会自动转交存量待办(10.3);`oa_delegate_rule` 未建;未用项目开发库启动完整应用。
 
 ## 4. 尚未完成的边界
 
@@ -113,13 +116,13 @@ OA 表迁移证据:已新增 `oa_process.sql`、`oa_form.sql`、`oa_application.
 - **鸿蒙**:安全随机数已改为无安全源即拒绝生成(拒绝采样,不降级 `Math.random`),并有单测;持久化驱动仍未接入,原生存储包安装命令在本机无输出后终止,未产生依赖改动。上传契约已修复为 `/app/file/upload`(登录、目录/类型/大小/归属校验),但尚未连接真实存储;原生能力与真机验收仍未完成。
 - **个人工具**:灵感便笺与物品收纳均已完成服务端分页 CRUD、归属/版本冲突测试与 App 页面接线,尚未连真实服务或真机验收;物品数量并发依赖真实 MySQL 复验。
 - **后台性能**:尚无隔离数据集和前后基线,未改索引或缓存。
-- **OA/BPMN**:生产引擎已接入并由 Liquibase 独占迁移,隔离 H2 与真实 MySQL 8.4 验证了租户隔离、事务回滚、关闭自动建表后的重启与定时器恢复;流程模型/发布/表单/表单版本/申请/审批审计/抄送回执/附件归属/outbox/命令幂等十张表已建并验证租户与全局唯一约束,但无实体/Mapper/API,outbox 投递与幂等清理作业未实现,各业务表未建。异步执行器未启用、完整应用未在项目开发库启动,多副本与长稳未验证。流程设计器、表单、审批中心及任何 OA 业务模块均未实现;不得把引擎接入或建表当作 OA 可交付。
+- **OA/BPMN**:生产引擎已接入并由 Liquibase 独占迁移,隔离 H2 与真实 MySQL 8.4 验证了租户隔离、事务回滚、关闭自动建表后的重启与定时器恢复;流程模型/发布/表单/表单版本/申请/审批审计/抄送回执/附件归属/outbox/命令幂等/岗位/员工/员工岗位十三张表已建并验证租户与全局唯一约束,员工组织与五种审批人来源的解析、发布校验和发起前拦截已打通,但无实体/Mapper/API 与员工岗位 CRUD 页面,outbox 投递与幂等清理作业未实现,候选解析只覆盖发起时已知变量(后续节点任务创建监听未接),离职员工存量待办不会自动转交,各业务表未建。异步执行器未启用、完整应用未在项目开发库启动,多副本与长稳未验证。流程设计器、表单、审批中心及任何 OA 业务模块均未实现;不得把引擎接入或建表当作 OA 可交付。
 
 ## 5. 后续分期与验收门槛
 
 1. **A 消息正确性(继续)**:App 已修发送/去重/生命周期,server 已完成提交后推送、会话行锁与有界读取,backend 客服回复已收口事务与推送顺序;下一步统一分页/已读协议并在真实数据库验证并发写入、已读与游标。
 2. **B 鸿蒙与个人工具**:修复持久化与安全随机数,经 `expo-harmony-cli` 检查兼容并生成原生工程;实现便笺与物品收纳的归属隔离和乐观锁;鸿蒙以签名包真机验收。
-3. **C 性能与 BPMN 底座**:建立可复现性能基线后再优化;已完成 Flowable 7.2.0 生产接入(Liquibase 托管、租户/事务/重启/定时器验证)与流程/表单/申请/审计/抄送/附件/outbox/幂等表迁移,下一步进入员工/岗位/主管解析与 XML 安全校验,再接 bpmn-js 设计器。
+3. **C 性能与 BPMN 底座**:建立可复现性能基线后再优化;已完成 Flowable 7.2.0 生产接入(Liquibase 托管、租户/事务/重启/定时器验证)、十三张 OA 业务表迁移与员工/岗位/主管候选解析,下一步实现 XML 安全校验与节点白名单,再接 bpmn-js 设计器。
 4. **D 请假/报销试点**:额度并发、审批幂等、审批与支付分离、浏览器全流程。
 5. **E 其余 OA**:出差借款、假勤、采购资产、合同用印、公文知识、会议车辆、报表运维逐模块验收;不得以通用表和菜单冒充完成。
 
