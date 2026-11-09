@@ -541,3 +541,32 @@ API /app/tool/report:创建(自动建成员+发通知)/mine/详情/读月报/存
 - **状态完备**:骨架屏(形状占位)全覆盖,无"加载中"文字
 - **动效**:列表入场 stagger(Reanimated entering),勾选弹跳+画线,圆形扩散转场,惯性滚轮
 - **零 AI-tell**:无 em-dash,无装饰圆点,无 fake-precise 数字,无 Inter 默认字体
+
+## 十九、页头规范、空状态插画与原生海拔(16.7 / 18.5 遗留收口)
+
+### 19.1 二级页页头统一
+- 约 46 个工具 / IM / AI / 社区详情 / 搜索页改为只保留原生 Stack header:页内 `text-2xl` 大标题删除,副标题保留;
+  `SafeAreaView` 由 `edges=['top']` 改 `['left','right']`,避免 header 下方再留一段状态栏高度。
+- 动态标题走页内 `<Stack.Screen options={{ title }} />`:签到 / 汇报详情取活动名,月报取成员昵称,家庭组取组名,习惯日历取习惯名,私信取对方昵称。
+- 自带全屏表单头的 `tools/ledger/add`、`tools/property-publish`、`community/publish` 关原生 header(`headerShown:false`),保留 `edges=['top']`。
+- 同批修两处真实缺陷:月报详情的评论列表此前查到了但从未渲染;宠物日志删除按钮绕过了确认框直接删。
+
+### 19.2 EmptyState 插画
+- `EmptyState` 新增可选 `illustration`(signin / list / money / calendar / home / chat),资源在 `assets/images/empty/*.png`(360px,单张 32–57KB),
+  圆形 `bg-muted` 承载,深色模式降透明度到 0.72。
+- 只在工具 / IM / AI / 社区共 41 处空态开启;寻人信任页(广场、搜索、档案详情、发布、我的、消息中心)保持纯文字,不加卡通插画。
+
+### 19.3 原生海拔常量
+- `components/ui/elevation.ts` 为单一来源:`card`(opacity .06 / radius 6 / y 2 / elevation 1)、`dialog`(.18 / 24 / 10 / 12),
+  阴影色取 overlay 深墨蓝 `#0b111e`;web 返回空对象,继续用 class 阴影(实测 web 卡片 boxShadow 未变)。
+- 已接到 `Card`、`DialogContent`、`AlertDialogContent`,调用方传入的 `style` 仍可覆盖。
+
+### 19.4 模板清理
+18.5 列出的 18 个零引用 shadcn 模板组件(menubar、dropdown-menu、context-menu、select 等,约 1.9k 行)已删除;
+删除前用 `git grep` 核对别名与相对路径两种导入均为 0。对应 `@rn-primitives/*` 依赖未动(依赖变更须走 expo-harmony-cli 流程)。
+
+### 19.5 验证与边界
+- `tsc --noEmit` 0 error;`eslint . --max-warnings=0` 退出码 0;`jest --ci` 18 套 114 测试全过。
+- Expo web(8089)实测:clock、property-favorites、im/chat、ledger/add、habit-detail 页头正确;todo / split 登录空态插画正常显示。
+- **未验证**:月报评论渲染只有静态检查(无后端与登录态);海拔数值与插画观感未在 Android / iOS / 鸿蒙真机核对。
+- `openspec/changes/add-guardfind-mvp-phase1/tasks.md` 的勾选状态与实际落地严重不符(大量已实现项仍未勾选),需单独逐项对账,本批未改。
